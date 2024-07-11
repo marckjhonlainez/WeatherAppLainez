@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function() {
-    const apiKey = "Kh5gVQGfC0TJzPYg2qFZPHuQ6DYFOutr"; // Replace with your actual API key
+    const apiKey = "zNTeyYJOz1kr636X5pv6CftXKAAJePAV"; // Replace with your actual API key
     const form = document.getElementById("cityForm");
     const weatherDiv = document.getElementById("weather");
 
@@ -10,49 +10,99 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     function getWeather(city) {
-        const url = `http://dataservice.accuweather.com/locations/v1/cities/search?apikey=${apiKey}&q=${city}`;
+        const locationUrl = `http://dataservice.accuweather.com/locations/v1/cities/search?apikey=${apiKey}&q=${city}`;
 
-        fetch(url)
+        fetch(locationUrl)
             .then(response => response.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    const locationKey = data[0].Key;
+            .then(locationData => {
+                if (locationData && locationData.length > 0) {
+                    const locationKey = locationData[0].Key;
                     fetchWeatherData(locationKey);
                 } else {
-                    weatherDiv.innerHTML = `<p>City not found.</p>`;
+                    weatherDiv.innerHTML = `<p class="error-message">City not found.</p>`;
                 }
             })
             .catch(error => {
                 console.error("Error fetching location data:", error);
-                weatherDiv.innerHTML = `<p>Error fetching location data.</p>`;
+                weatherDiv.innerHTML = `<p class="error-message">Error fetching location data.</p>`;
             });
     }
 
     function fetchWeatherData(locationKey) {
-        const url = `http://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${apiKey}`;
+        const currentConditionsUrl = `http://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${apiKey}`;
+        const hourlyForecastUrl = `http://dataservice.accuweather.com/forecasts/v1/hourly/1hour/${locationKey}?apikey=${apiKey}&metric=true`;
+        const dailyForecastUrl = `http://dataservice.accuweather.com/forecasts/v1/daily/5day/${locationKey}?apikey=${apiKey}&metric=true`;
 
-        fetch(url)
+        // Fetch current conditions
+        fetch(currentConditionsUrl)
             .then(response => response.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    displayWeather(data[0]);
+            .then(currentData => {
+                if (currentData && currentData.length > 0) {
+                    const currentWeather = currentData[0];
+                    // Fetch hourly forecast
+                    fetch(hourlyForecastUrl)
+                        .then(response => response.json())
+                        .then(hourlyData => {
+                            // Fetch daily forecast
+                            fetch(dailyForecastUrl)
+                                .then(response => response.json())
+                                .then(dailyData => {
+                                    // Display weather and forecasts
+                                    displayWeather(currentWeather, hourlyData, dailyData);
+                                })
+                                .catch(error => {
+                                    console.error("Error fetching daily forecast:", error);
+                                    weatherDiv.innerHTML = `<p class="error-message">Error fetching daily forecast.</p>`;
+                                });
+                        })
+                        .catch(error => {
+                            console.error("Error fetching hourly forecast:", error);
+                            weatherDiv.innerHTML = `<p class="error-message">Error fetching hourly forecast.</p>`;
+                        });
                 } else {
-                    weatherDiv.innerHTML = `<p>No weather data available.</p>`;
+                    weatherDiv.innerHTML = `<p class="error-message">No weather data available.</p>`;
                 }
             })
             .catch(error => {
-                console.error("Error fetching weather data:", error);
-                weatherDiv.innerHTML = `<p>Error fetching weather data.</p>`;
+                console.error("Error fetching current conditions:", error);
+                weatherDiv.innerHTML = `<p class="error-message">Error fetching current conditions.</p>`;
             });
     }
 
-    function displayWeather(data) {
-        const temperature = data.Temperature.Metric.Value;
-        const weather = data.WeatherText;
+    function displayWeather(currentWeather, hourlyForecast, dailyForecast) {
+        const temperature = currentWeather.Temperature.Metric.Value;
+        const weather = currentWeather.WeatherText;
+
+        let hourlyForecastContent = `<h3>Hourly Forecast (Next 1 Hour)</h3><ul>`;
+        for (let i = 0; i < 1; i++) {
+            hourlyForecastContent += `<li>${hourlyForecast[i].DateTime}: ${hourlyForecast[i].Temperature.Value}°C, ${hourlyForecast[i].IconPhrase}</li>`;
+        }
+        hourlyForecastContent += `</ul>`;
+
+        let dailyForecastContent = `<h3>Daily Forecast (Next 5 Days)</h3><ul class="daily-forecast">`;
+        for (let i = 0; i < 5; i++) {
+            const date = new Date(dailyForecast.DailyForecasts[i].Date);
+            const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+            const maxTemp = dailyForecast.DailyForecasts[i].Temperature.Maximum.Value;
+            const minTemp = dailyForecast.DailyForecasts[i].Temperature.Minimum.Value;
+            const weatherDescription = dailyForecast.DailyForecasts[i].Day.IconPhrase;
+
+            dailyForecastContent += `
+                <li>
+                    <div class="day">${dayOfWeek}</div>
+                    <div class="temp">High ${maxTemp}°C, Low ${minTemp}°C</div>
+                    <div class="weather">${weatherDescription}</div>
+                </li>
+            `;
+        }
+        dailyForecastContent += `</ul>`;
+
         const weatherContent = `
-            <h2>Weather</h2>
-            <p>Temperature: ${temperature}°C</p>
-            <p>Weather: ${weather}</p>
+            <h2>Current Weather</h2>
+            <p class="temperature">Temperature: ${temperature}°C</p>
+            <p class="weather-description">Weather: ${weather}</p>
+            ${hourlyForecastContent}
+            ${dailyForecastContent}
         `;
         weatherDiv.innerHTML = weatherContent;
     }
